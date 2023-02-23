@@ -1,5 +1,8 @@
 import fs from 'fs';
 import crypto from 'crypto';
+import util from 'util';
+
+const scrypt = util.promisify(crypto.scrypt);
 
 class UsersRepository {
   constructor(filename) {
@@ -23,13 +26,31 @@ class UsersRepository {
   }
 
   async create(attrs) {
-    attrs.Id = this.randomId();
+    attrs.id = this.randomId();
+
+    const salt = crypto.randomBytes(8).toString('hex');
+    const buf = await scrypt(attrs.password, salt, 64)
 
     const records = await this.getAll();
-    records.push(attrs);
+
+    const record = {
+      ...attrs,
+      password: `${buf.toString('hex')}.${salt}`
+    };
+
+    records.push(record);
 
     await this.writeAll(records);
+
+    return record;
   };
+
+  async comparePasswords(saved, supplied) {
+    const [hashed, salt] = saved.split('.');
+    const hashedSuppliedBuf = await scrypt(supplied, salt, 64);
+
+    return hashed === hashedSuppliedBuf.toString('hex');
+  }
 
   async writeAll(records) {
     // write updated records to users.json <this.filename>
@@ -43,19 +64,19 @@ class UsersRepository {
   async getOne(id) {
     const records = await this.getAll();
 
-    return records.find(record => record.Id === id);
+    return records.find(record => record.id === id);
   };
 
   async delete(id) {
     const records = await this.getAll();
-    const filteredRecords = records.filter(record => record.Id !== id);
+    const filteredRecords = records.filter(record => record.id !== id);
 
     await this.writeAll(filteredRecords);
   };
 
   async update(id, attrs) {
     const records = await this.getAll();
-    const record = records.find(record => record.Id === id);
+    const record = records.find(record => record.id === id);
 
     if (!record) {
       throw new Error(`Record with id ${id} not found.`);
