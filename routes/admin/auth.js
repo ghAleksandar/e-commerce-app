@@ -1,6 +1,6 @@
 import express from 'express';
-import { check, validationResult } from 'express-validator';
 
+import { handleErrors } from './middlewares.js';
 import usersRepo from '../../repositories/users.js';
 import signupTemplate from '../../views/admin/auth/signup.js';
 import signinTemplate from '../../views/admin/auth/signin.js';
@@ -25,15 +25,10 @@ router.post('/signup', [
     requirePassword,
     requirePasswordConfirmation
   ],
+  handleErrors(signupTemplate),
   async (req, res) => {
-    const errors = validationResult(req);
-
-    if (!errors.isEmpty()) {
-      return res.send(signupTemplate({ req, errors }));
-    }
-
     // console.log(errors)
-    const { email, password, passwordConfirmation } = req.body;
+    const { email, password } = req.body;
 
     // Create a user repo to represent this person
     const user = await usersRepo.create({ email, password });
@@ -42,7 +37,7 @@ router.post('/signup', [
     req.session.userId = user.id //added by cookie session
     console.log(errors)
     // console.log(req.body)
-    res.send('Account Created')
+    res.redirect('/admin/products');
 });
 
 router.get('/signout', (req, res) => {
@@ -56,21 +51,15 @@ router.get('/signin', (req, res) => {
 
 router.post('/signin',
   [ requireEmailExists, requireValidPasswordForUser ],
+  handleErrors(signinTemplate),
   async (req, res) => {
-    const errors = validationResult(req);
-
-    if (!errors.isEmpty()) {
-      return res.send(signinTemplate({ errors }))
-    }
-
-    console.log(errors)
-
     const { email } = req.body;
 
     const user = await usersRepo.getOneBy({ email });
 
     req.session.userId = user.id;
-    res.send('You are signed in!')
+
+    res.redirect('/admin/products');
   });
 
 export default router;
